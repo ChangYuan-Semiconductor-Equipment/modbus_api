@@ -73,7 +73,7 @@ class ModbusApi:
         """
         try:
             registers = self.client.execute(
-                slave=1, function_code=cst.READ_COILS, starting_address=address, quantity_of_x=1
+                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=1
             )
             value = (registers[0] & (1 << bit_index)) != 0
             if save_log:
@@ -141,7 +141,7 @@ class ModbusApi:
         """
         try:
             coils = self.client.execute(
-                slave=1, function_code=cst.READ_COILS, starting_address=address, quantity_of_x=1
+                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=1
             )
             current_value = coils[0]
             if value:
@@ -149,7 +149,7 @@ class ModbusApi:
             else:
                 new_value = current_value & ~(1 << bit_index)
             self.client.execute(
-                slave=1, function_code=cst.WRITE_SINGLE_COIL, starting_address=address, output_value=new_value)
+                slave=1, function_code=cst.WRITE_SINGLE_REGISTER, starting_address=address, output_value=new_value)
             if save_log:
                 self.logger.info("Wrote boolean value %s to address %d, bit index %d", value, address, bit_index)
         except Exception as e:
