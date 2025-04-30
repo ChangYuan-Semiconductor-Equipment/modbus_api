@@ -177,13 +177,13 @@ class ModbusApi:
             raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
 
     # pylint: disable=R0913, R0917
-    def execute_read(self, data_type, address, count=1, bit_index=0, save_log=True) -> Union[int, str, bool]:
+    def execute_read(self, data_type, address, size=1, bit_index=0, save_log=True) -> Union[int, str, bool]:
         """Execute read function based on data_type.
 
         Args:
             data_type: The data type to read.
             address: The address to read from.
-            count: The number of values to read.
+            size: The number of values to read.
             bit_index: The index of the bit within the address to read.
             save_log: Whether to save the log or not.
 
@@ -193,9 +193,9 @@ class ModbusApi:
         if data_type == "bool":
             return self.read_bool(address, bit_index, save_log)
         if data_type == "int":
-            return self.read_int(address, count, save_log)
+            return self.read_int(address, size, save_log)
         if data_type == "str":
-            return self.read_str(address, count, save_log)
+            return self.read_str(address, size, save_log)
         raise ValueError(f"Invalid data type: {data_type}")
 
     # pylint: disable=R0913, R0917
