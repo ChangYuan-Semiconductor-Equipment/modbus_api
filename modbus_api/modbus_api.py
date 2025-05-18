@@ -121,8 +121,8 @@ class ModbusApi:
         """
         try:
             results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, address, quantity_of_x=count)
-            byte_data = b"".join(struct.pack(">H", result) for result in results[::-1])
-            value_str = byte_data.decode("UTF-8").strip("\x00")[::-1]
+            byte_data = b"".join(struct.pack(">H", result) for result in results)
+            value_str = byte_data.decode("UTF-8").strip("\x00")
             if save_log:
                 self.logger.info("Read string value from %s to %s: %s", address, address + count - 1, value_str)
             return value_str
