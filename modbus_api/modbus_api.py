@@ -235,6 +235,45 @@ class ModbusApi:
             self.logger.error("写入输入寄存器时出错: %s", str(e))
             raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
 
+    def write_str(self, address: int, value: str, save_log=True) -> None:
+        """将字符串写入PLC的保持寄存器
+
+        参数:
+            address: 起始寄存器地址
+            value: 要写入的字符串
+            save_log: 是否保存日志
+        """
+        try:
+            # 1. 将字符串编码为字节(UTF-8)
+            byte_data = value.encode("UTF-8")
+
+            byte_data_length = len(byte_data)
+
+            # 2. 计算需要的寄存器数量(每个寄存器2字节)
+            register_count = (byte_data_length // 2) + (1 if byte_data_length % 2 else 0)
+
+            # 3. 将字节转换为寄存器值列表
+            registers = []
+            for i in range(0, byte_data_length, 2):
+                # 获取两个字节(不足补0)
+                byte2 = byte_data[i] if i <byte_data_length else 0x00
+                byte1 = byte_data[i + 1] if (i + 1) < byte_data_length else 0x00
+                # 组合成16位寄存器值
+                register_value = (byte1 << 8) | byte2
+                registers.append(register_value)
+
+            # 4. 使用modbus_tk写入多个寄存器
+            self.client.execute(
+                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=address, output_value=registers
+            )
+
+            if save_log:
+                self.logger.info("成功写入字符串 '%s' 到地址 %d", value, address)
+
+        except Exception as e:
+            self.logger.error("写入字符串时出错: %s", str(e))
+            raise PLCWriteError(f"写入字符串到保持寄存器时出错: {e}") from e
+
     # pylint: disable=R0913, R0917
     def execute_read(self, data_type, address, size=1, bit_index=0, save_log=True) -> Union[int, str, bool]:
         """Execute read function based on data_type.
@@ -249,6 +288,7 @@ class ModbusApi:
         Returns:
             Union[int, str, bool]: The value read from the PLC.
         """
+        address = int(address)
         if data_type == "bool":
             return self.read_bool(address, bit_index, save_log)
         if data_type == "int":
@@ -268,11 +308,12 @@ class ModbusApi:
             bit_index: The index of the bit within the address to write.
             save_log: Whether to save the log or not.
         """
+        address = int(address)
         if data_type == "bool":
             self.write_bool(address, bit_index, value, save_log)
         elif data_type == "int":
             self.write_int(address, value, save_log)
         elif data_type == "str":
-            pass
+            self.write_str(address, value, save_log)
         else:
             raise ValueError(f"Invalid data type: {data_type}")
