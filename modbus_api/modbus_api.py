@@ -264,7 +264,9 @@ class ModbusApi:
 
             # 4. 使用modbus_tk写入多个寄存器
             self.client.execute(
-                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=address, output_value=registers
+                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
+                starting_address=address, output_value=registers,
+                quantity_of_x=register_count
             )
 
             if save_log:
