@@ -249,7 +249,10 @@ class ModbusApi:
 
             byte_data_length = len(byte_data)
 
-            # 2. 将字节转换为寄存器值列表
+            # 2. 计算需要的寄存器数量(每个寄存器2字节)
+            register_count = (byte_data_length // 2) + (1 if byte_data_length % 2 else 0)
+
+            # 3. 将字节转换为寄存器值列表
             registers = []
             for i in range(0, byte_data_length, 2):
                 # 获取两个字节(不足补0)
@@ -259,10 +262,11 @@ class ModbusApi:
                 register_value = (byte1 << 8) | byte2
                 registers.append(register_value)
 
-            # 3. 使用modbus_tk写入多个寄存器
+            # 4. 使用modbus_tk写入多个寄存器
             self.client.execute(
                 slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
-                starting_address=address, output_value=registers
+                starting_address=address, output_value=registers,
+                quantity_of_x=register_count
             )
 
             if save_log:
