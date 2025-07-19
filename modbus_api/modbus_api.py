@@ -235,26 +235,20 @@ class ModbusApi:
             self.logger.error("写入输入寄存器时出错: %s", str(e))
             raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
 
-    def write_str(self, address: int, value: str, save_log=True) -> None:
+    def write_str(self, address: int, value: str, size: int, save_log=True) -> None:
         """将字符串写入PLC的保持寄存器
 
         参数:
-            address: 起始寄存器地址
-            value: 要写入的字符串
-            save_log: 是否保存日志
+            address: 起始寄存器地址.
+            value: 要写入的字符串.
+            size: 要写入寄存器长度.
+            save_log: 是否保存日志.
         """
         try:
-            # 1. 将字符串编码为字节(UTF-8)
             byte_data = value.encode("UTF-8")
-
             byte_data_length = len(byte_data)
-
-            # 2. 计算需要的寄存器数量(每个寄存器2字节)
-            register_count = (byte_data_length // 2) + (1 if byte_data_length % 2 else 0)
-
-            # 3. 将字节转换为寄存器值列表
             registers = []
-            for i in range(0, byte_data_length, 2):
+            for i in range(0, size, 2):
                 # 获取两个字节(不足补0)
                 byte2 = byte_data[i] if i < byte_data_length else 0x00
                 byte1 = byte_data[i + 1] if (i + 1) < byte_data_length else 0x00
@@ -262,11 +256,10 @@ class ModbusApi:
                 register_value = (byte1 << 8) | byte2
                 registers.append(register_value)
 
-            # 4. 使用modbus_tk写入多个寄存器
             self.client.execute(
                 slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
                 starting_address=address, output_value=registers,
-                quantity_of_x=register_count
+                quantity_of_x=size
             )
 
             if save_log:
@@ -300,7 +293,7 @@ class ModbusApi:
         raise ValueError(f"Invalid data type: {data_type}")
 
     # pylint: disable=R0913, R0917
-    def execute_write(self, data_type, address, value, bit_index=0, save_log=True):
+    def execute_write(self, data_type, address, value, bit_index=0, save_log=True, **kwargs):
         """Execute write function based on data_type.
 
         Args:
@@ -309,6 +302,9 @@ class ModbusApi:
             value: The value to write.
             bit_index: The index of the bit within the address to write.
             save_log: Whether to save the log or not.
+
+        Raises:
+            KeyError: Write str must be input size.
         """
         address = int(address)
         if data_type == "bool":
@@ -316,6 +312,9 @@ class ModbusApi:
         elif data_type == "int":
             self.write_int(address, value, save_log)
         elif data_type == "str":
-            self.write_str(address, value, save_log)
+            size = kwargs.get("size")
+            if size is None:
+                raise KeyError("写入字符串时必须要传入寄存器长度")
+            self.write_str(address, value, size, save_log)
         else:
             raise ValueError(f"Invalid data type: {data_type}")
