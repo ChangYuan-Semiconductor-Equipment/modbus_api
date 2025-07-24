@@ -76,7 +76,7 @@ class ModbusApi:
         Returns:
             str: 新生成的自定义日志文件路径.
         """
-        _, suffix, date_str, *args = log_path.split(".")
+        _, suffix, date_str, *__ = log_path.split(".")
         new_log_path = f"{os.getcwd()}/log/plc_{self.plc_name}_{date_str}.{suffix}"
         return new_log_path
 
