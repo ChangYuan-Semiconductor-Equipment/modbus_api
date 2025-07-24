@@ -18,16 +18,18 @@ class ModbusApi:
     LOG_FORMAT = "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
 
 
-    def __init__(self, plc_ip: str, port: int = 502, plc_name: str = ""):
+    def __init__(self, plc_ip: str, port: int = 502, plc_name: str = "", save_log: bool = False):
         """ModbusApi 构造方法.
 
         Args:
             plc_ip: plc ip address.
             port: port number.
             plc_name: plc name.
+            save_log: whether save log or not.
         """
         logging.basicConfig(level=logging.INFO, encoding="UTF-8", format=self.LOG_FORMAT)
 
+        self.save_log = save_log
         self.plc_ip = plc_ip
         self.port = port
         self.logger = logging.getLogger(__name__)
@@ -41,8 +43,9 @@ class ModbusApi:
 
     def _initial_log_config(self) -> None:
         """日志配置."""
-        self._create_log_dir()
-        self.logger.addHandler(self.file_handler)  # handler_passive 日志保存到统一文件
+        if self.save_log:
+            self._create_log_dir()
+            self.logger.addHandler(self.file_handler)  # handler_passive 日志保存到统一文件
 
     @staticmethod
     def _create_log_dir():
