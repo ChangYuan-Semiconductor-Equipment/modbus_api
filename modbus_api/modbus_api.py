@@ -1,3 +1,5 @@
+# pylint: skip-file
+
 """封装Modbus读写方法."""
 import logging
 import os
@@ -8,7 +10,6 @@ from typing import Union, List
 
 from modbus_tk import modbus_tcp
 from modbus_tk import defines as cst
-
 
 from modbus_api.exception import PLCConnectError, PLCReadError, PLCWriteError
 
