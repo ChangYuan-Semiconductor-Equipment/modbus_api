@@ -273,7 +273,7 @@ class ModbusApi:
             self.logger.error("写入字符串时出错: %s", str(e))
             raise PLCWriteError(f"写入字符串到保持寄存器时出错: {e}") from e
 
-    def read_multiple(self, address: int, count: int, save_log: bool = True) -> tuple:
+    def read_multiple(self, address: int, count: int, save_log: bool = True) -> list:
         """读取连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是读 (1264 - 1214 -2) / 2 = 24 个 word.
 
         Args:
@@ -282,23 +282,23 @@ class ModbusApi:
             save_log: Whether to save the log or not.
 
         Returns:
-            tuple: 返回元组连续的值.
+            list: 返回连续的值列表.
         """
         try:
             results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, address, quantity_of_x=count)
             if save_log:
                 self.logger.info("从 %s 开始连续读 % s 个值为: %s", address, count, results)
-            return results
+            return list(results)
         except Exception as e:
             self.logger.error("读取输入寄存器时出错: %s", str(e))
             raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
 
-    def write_multiple(self, address: int, values: tuple, size: int, save_log: bool = True):
+    def write_multiple(self, address: int, values: list, size: int, save_log: bool = True):
         """写连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是写 (1264 - 1214 -2) / 2 = 24 个 word.
 
         参数:
             address: 起始寄存器地址.
-            values: 要写入的值元组.
+            values: 要写入的值列表.
             size: 要写入寄存器长度.
             save_log: 是否保存日志.
         """
