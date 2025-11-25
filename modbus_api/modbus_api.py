@@ -274,7 +274,7 @@ class ModbusApi:
             raise PLCWriteError(f"写入字符串到保持寄存器时出错: {e}") from e
 
     def read_multiple(self, address: int, count: int, save_log: bool = True) -> tuple:
-        """读取连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是读 ((1264 - 1214) -2) / 2 = 25 个 word.
+        """读取连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是读 (1264 - 1214 -2) / 2 = 24 个 word.
 
         Args:
             address: The address to read from.
@@ -294,7 +294,7 @@ class ModbusApi:
             raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
 
     def write_multiple(self, address: int, values: tuple, size: int, save_log: bool = True):
-        """写连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是写 ((1264 - 1214) -2) / 2 = 25 个 word.
+        """写连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是写 (1264 - 1214 -2 / 2 = 24 个 word.
 
         参数:
             address: 起始寄存器地址.
