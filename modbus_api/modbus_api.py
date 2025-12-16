@@ -239,6 +239,36 @@ class ModbusApi:
             self.logger.error("写入输入寄存器时出错: %s", str(e))
             raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
 
+    def read_real(self, address: int, count: int = 2, save_log: bool = True) -> float:
+        """Read a real value from the PLC.
+
+        Args:
+            address: 地址
+            count: 大小.
+            save_log: s是否保存日志, 默认保存.
+
+        Returns:
+            float: The real value read from the PLC.
+
+        Raises:
+            PLCReadError: If the read fails.
+        """
+        try:
+            registers = self.client.execute(
+                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=count
+            )
+            high_byte, low_byte = registers[1], registers[0]
+            packed_data = struct.pack('>HH', high_byte, low_byte)  # >HH：大端序2个16位无符号整数
+            real_value = struct.unpack('>f', packed_data)[0]  # >f：大端序32位浮点
+
+            if save_log:
+                self.logger.info("读取 real 地址 %s 值为: %s", address, real_value)
+            return real_value
+
+        except Exception as e:
+            self.logger.error("读取输入寄存器时出错: %s", str(e))
+            raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
+
     def write_str(self, address: int, value: str, size: int, save_log: bool = True):
         """将字符串写入PLC的保持寄存器
 
@@ -336,6 +366,9 @@ class ModbusApi:
             return self.read_int(address, size, save_log)
         if data_type in  ["str", "string"]:
             return self.read_str(address, size, save_log)
+        if data_type == "real":
+            return self.read_real(address, size, save_log)
+
         raise ValueError(f"Invalid data type: {data_type}")
 
     # pylint: disable=R0913, R0917
