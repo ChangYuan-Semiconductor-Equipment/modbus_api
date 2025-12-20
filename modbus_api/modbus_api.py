@@ -185,6 +185,7 @@ class ModbusApi:
         try:
             results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, address, quantity_of_x=count)
             byte_data = b"".join(struct.pack(">H", result) for result in results[::-1])[::-1]
+            byte_data = byte_data.split(b"\x00")[0]  # 提取第一个null字节之前的部分
             value_str = byte_data.decode("UTF-8").strip("\x00")
             if save_log:
                 self.logger.info("读取 str 地址 %s 值为: %s, 长度为: %s", address, value_str, count)
@@ -245,7 +246,7 @@ class ModbusApi:
         Args:
             address: 地址
             count: 大小.
-            save_log: s是否保存日志, 默认保存.
+            save_log: 是否保存日志, 默认保存.
 
         Returns:
             float: The real value read from the PLC.
@@ -349,6 +350,13 @@ class ModbusApi:
     def execute_read(self, data_type, address, size=1, bit_index=0, save_log: bool = True) -> Union[int, str, bool]:
         """Execute read function based on data_type.
 
+        plc 里两个字节是一个大小
+            bool 占 2 个字节, 大小是 1
+            int 占 2 个字节, 大小是 1
+            dint 占 4 个字节, 大小是 2
+            real 占 4 个字节, 大小是 2
+            str 如果占 30 个字节, 大小是 15
+
         Args:
             data_type: The data type to read.
             address: The address to read from.
@@ -374,6 +382,13 @@ class ModbusApi:
     # pylint: disable=R0913, R0917
     def execute_write(self, data_type, address, value, bit_index=0, save_log: bool = True, **kwargs):
         """Execute write function based on data_type.
+
+        plc 里两个字节是一个大小
+            bool 占 2 个字节, 大小是 1
+            int 占 2 个字节, 大小是 1
+            dint 占 4 个字节, 大小是 2
+            real 占 4 个字节, 大小是 2
+            str 如果占 30 个字节, 大小是 30
 
         Args:
             data_type: The data type to write.
