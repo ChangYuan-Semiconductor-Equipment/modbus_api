@@ -146,11 +146,10 @@ class ModbusApi:
             self.logger.error("读取保持寄存器时出错: %s", str(e))
             raise PLCReadError(f"读取保持寄存器时出错: {e}") from e
 
-    def read_int(self, address: int, count: int = 1, save_log: bool = True) -> int:
+    def read_int(self, address: int, save_log: bool = True) -> int:
         """Read an integer value from the PLC.
         Args:
             address: The address to read from.
-            count: The number of values to read.
             save_log: Whether to save the log or not.
 
         Returns:
@@ -158,12 +157,9 @@ class ModbusApi:
         """
         try:
             registers = self.client.execute(
-                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=count
+                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=1
             )
-            if count == 1:
-                int_value = registers[0]
-            else:
-                int_value = registers
+            int_value = registers[0]
             if save_log:
                 self.logger.info("读取 int 地址 %s 值为: %s", address, int_value)
             return int_value
@@ -171,24 +167,53 @@ class ModbusApi:
             self.logger.error("读取输入寄存器时出错: %s", str(e))
             raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
 
-    def read_str(self, address: int, count: int, save_log: bool = True) -> str:
+    def read_real(self, address: int, save_log: bool = True) -> float:
+        """Read a real value from the PLC.
+
+        Args:
+            address: 地址.
+            save_log: 是否保存日志, 默认保存.
+
+        Returns:
+            float: The real value read from the PLC.
+
+        Raises:
+            PLCReadError: If the read fails.
+        """
+        try:
+            registers = self.client.execute(
+                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=2
+            )
+            high_byte, low_byte = registers[1], registers[0]
+            packed_data = struct.pack('>HH', high_byte, low_byte)  # >HH: 大端序2个16位无符号整数
+            real_value = struct.unpack('>f', packed_data)[0]  # >f: 大端序32位浮点
+
+            if save_log:
+                self.logger.info("读取 real 地址 %s 值为: %s", address, real_value)
+            return real_value
+
+        except Exception as e:
+            self.logger.error("读取输入寄存器时出错: %s", str(e))
+            raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
+
+    def read_str(self, address: int, size: int, save_log: bool = True) -> str:
         """Read a string value from the PLC.
 
         Args:
             address: The address to read from.
-            count: The number of values to read.
+            size: 字节个数.
             save_log: Whether to save the log or not.
 
         Returns:
             str: The value read from the PLC.
         """
         try:
-            results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, address, quantity_of_x=count)
+            results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, address, quantity_of_x=size // 2)
             byte_data = b"".join(struct.pack(">H", result) for result in results[::-1])[::-1]
             byte_data = byte_data.split(b"\x00")[0]  # 提取第一个null字节之前的部分
             value_str = byte_data.decode("UTF-8").strip("\x00")
             if save_log:
-                self.logger.info("读取 str 地址 %s 值为: %s, 长度为: %s", address, value_str, count)
+                self.logger.info("读取 str 地址 %s 值为: %s, 字节个数为: %s", address, value_str, size)
             return value_str
         except Exception as e:
             self.logger.error("读取输入寄存器时出错: %s", str(e))
@@ -240,43 +265,13 @@ class ModbusApi:
             self.logger.error("写入输入寄存器时出错: %s", str(e))
             raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
 
-    def read_real(self, address: int, count: int = 2, save_log: bool = True) -> float:
-        """Read a real value from the PLC.
-
-        Args:
-            address: 地址
-            count: 大小.
-            save_log: 是否保存日志, 默认保存.
-
-        Returns:
-            float: The real value read from the PLC.
-
-        Raises:
-            PLCReadError: If the read fails.
-        """
-        try:
-            registers = self.client.execute(
-                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=count
-            )
-            high_byte, low_byte = registers[1], registers[0]
-            packed_data = struct.pack('>HH', high_byte, low_byte)  # >HH：大端序2个16位无符号整数
-            real_value = struct.unpack('>f', packed_data)[0]  # >f：大端序32位浮点
-
-            if save_log:
-                self.logger.info("读取 real 地址 %s 值为: %s", address, real_value)
-            return real_value
-
-        except Exception as e:
-            self.logger.error("读取输入寄存器时出错: %s", str(e))
-            raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
-
     def write_str(self, address: int, value: str, size: int, save_log: bool = True):
         """将字符串写入PLC的保持寄存器
 
         参数:
             address: 起始寄存器地址.
             value: 要写入的字符串.
-            size: 要写入寄存器长度.
+            size: 字节大小.
             save_log: 是否保存日志.
         """
         try:
@@ -293,8 +288,7 @@ class ModbusApi:
 
             self.client.execute(
                 slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
-                starting_address=address, output_value=registers,
-                quantity_of_x=size
+                starting_address=address, output_value=registers
             )
 
             if save_log:
@@ -304,43 +298,46 @@ class ModbusApi:
             self.logger.error("写入字符串时出错: %s", str(e))
             raise PLCWriteError(f"写入字符串到保持寄存器时出错: {e}") from e
 
-    def read_multiple(self, address: int, count: int, save_log: bool = True) -> list:
-        """读取连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是读 (1264 - 1214 -2) / 2 = 24 个 word.
+    def read_multiple(self, start_address: int, end_address: int, save_log: bool = True) -> list:
+        """读取连续多个字节.
 
         Args:
-            address: The address to read from.
-            count: The number of values to read.
+            start_address: 开始地址.
+            end_address: 结束地址.
             save_log: Whether to save the log or not.
 
         Returns:
             list: 返回连续的值列表.
         """
         try:
-            results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, address, quantity_of_x=count)
+            byte_size = int(end_address) - int(start_address)
+            if byte_size > 200:
+                raise PLCReadError(f"一次最多读 200 个字节, 目前要读的字节个数是: {byte_size}")
+
+            count_num = byte_size // 2
+            results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, start_address, quantity_of_x=count_num)
             if save_log:
-                self.logger.info("从 %s 开始连续读 % s 个值为: %s", address, count, results)
+                self.logger.info("读取从 %s 到 %s 的数据是 %s", start_address, end_address, results)
             return list(results)
         except Exception as e:
             self.logger.error("读取输入寄存器时出错: %s", str(e))
             raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
 
-    def write_multiple(self, address: int, values: list, size: int, save_log: bool = True):
-        """写连续多个 word 值, 开始地址是 %MB1214, 结束地址的下一个地址是 %MB1264, 则是写 (1264 - 1214 -2) / 2 = 24 个 word.
+    def write_multiple(self, address: int, values: list, save_log: bool = True):
+        """写连续多个 byte 值.
 
         参数:
             address: 起始寄存器地址.
             values: 要写入的值列表.
-            size: 要写入寄存器长度.
             save_log: 是否保存日志.
         """
         try:
             self.client.execute(
                 slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
-                starting_address=address, output_value=values,
-                quantity_of_x=size
+                starting_address=address, output_value=values
             )
             if save_log:
-                self.logger.info("从 %s 开始连续写 %s 个值成功, 写的值: %s", address, size, values)
+                self.logger.info("从 %s 开始连续写 %s 个值成功, 写的值: %s", address, len(values), values)
 
         except Exception as e:
             self.logger.error("写入连续值时出错: %s", str(e))
@@ -350,17 +347,10 @@ class ModbusApi:
     def execute_read(self, data_type, address, size=1, bit_index=0, save_log: bool = True) -> Union[int, str, bool]:
         """Execute read function based on data_type.
 
-        plc 里两个字节是一个大小
-            bool 占 2 个字节, 大小是 1
-            int 占 2 个字节, 大小是 1
-            dint 占 4 个字节, 大小是 2
-            real 占 4 个字节, 大小是 2
-            str 如果占 30 个字节, 大小是 15
-
         Args:
             data_type: The data type to read.
             address: The address to read from.
-            size: The number of values to read.
+            size: 字节个数.
             bit_index: The index of the bit within the address to read.
             save_log: Whether to save the log or not.
 
@@ -371,24 +361,17 @@ class ModbusApi:
         if data_type == "bool":
             return self.read_bool(address, bit_index, save_log)
         if data_type == "int":
-            return self.read_int(address, size, save_log)
+            return self.read_int(address, save_log)
         if data_type in  ["str", "string"]:
             return self.read_str(address, size, save_log)
         if data_type == "real":
-            return self.read_real(address, size, save_log)
+            return self.read_real(address, save_log)
 
         raise ValueError(f"Invalid data type: {data_type}")
 
     # pylint: disable=R0913, R0917
     def execute_write(self, data_type, address, value, bit_index=0, save_log: bool = True, **kwargs):
         """Execute write function based on data_type.
-
-        plc 里两个字节是一个大小
-            bool 占 2 个字节, 大小是 1
-            int 占 2 个字节, 大小是 1
-            dint 占 4 个字节, 大小是 2
-            real 占 4 个字节, 大小是 2
-            str 如果占 30 个字节, 大小是 30
 
         Args:
             data_type: The data type to write.
