@@ -287,8 +287,7 @@ class ModbusApi:
                 registers.append(register_value)
 
             self.client.execute(
-                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
-                starting_address=address, output_value=registers
+                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=address, output_value=registers
             )
 
             if save_log:
@@ -317,34 +316,39 @@ class ModbusApi:
             count_num = byte_size // 2
             results = self.client.execute(1, cst.READ_HOLDING_REGISTERS, start_address, quantity_of_x=count_num)
             if save_log:
-                self.logger.info("读取从 %s 到 %s 的数据是 %s", start_address, end_address, results)
+                self.logger.info("从 %s 到 %s 读取成功, 数据个数是 %s", start_address, end_address, len(results))
             return list(results)
         except Exception as e:
             self.logger.error("读取输入寄存器时出错: %s", str(e))
             raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
 
-    def write_multiple(self, address: int, values: list, save_log: bool = True):
+    def write_multiple(self, start_address: int,  end_address: int, values: list, save_log: bool = True):
         """写连续多个 byte 值.
 
         参数:
-            address: 起始寄存器地址.
+            start_address: 起始寄存器地址.
+            end_address: 结束地址.
             values: 要写入的值列表.
             save_log: 是否保存日志.
         """
         try:
+            byte_size = int(end_address) - int(start_address)
+            if byte_size != len(values):
+                raise PLCWriteError("要写的 byte 个数和要写入值个数不匹配!")
             self.client.execute(
-                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS,
-                starting_address=address, output_value=values
+                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=start_address, output_value=values
             )
             if save_log:
-                self.logger.info("从 %s 开始连续写 %s 个值成功, 写的值: %s", address, len(values), values)
+                self.logger.info("从 %s 开始连续写 %s 个值成功", start_address, len(values))
 
         except Exception as e:
             self.logger.error("写入连续值时出错: %s", str(e))
             raise PLCWriteError(f"写入连续值到保持寄存器时出错: {e}") from e
 
     # pylint: disable=R0913, R0917
-    def execute_read(self, data_type, address, size=1, bit_index=0, save_log: bool = True) -> Union[int, str, bool]:
+    def execute_read(
+            self, data_type: str, address: int, size: int = 1, bit_index: int = 0, save_log: bool = True
+    ) -> Union[int, str, bool]:
         """Execute read function based on data_type.
 
         Args:
@@ -370,7 +374,10 @@ class ModbusApi:
         raise ValueError(f"Invalid data type: {data_type}")
 
     # pylint: disable=R0913, R0917
-    def execute_write(self, data_type, address, value, bit_index=0, save_log: bool = True, **kwargs):
+    def execute_write(
+            self, data_type: str, address: int, value: Union[bool, int, float, str],
+            bit_index: int = 0, save_log: bool = True, **kwargs
+    ):
         """Execute write function based on data_type.
 
         Args:
@@ -391,7 +398,7 @@ class ModbusApi:
         elif data_type in ["str", "string"]:
             size = kwargs.get("size")
             if size is None:
-                raise KeyError("写入字符串时必须要传入寄存器长度")
+                raise KeyError("写入字符串时必须要传入字节个数")
             self.write_str(address, value, size, save_log)
         else:
             raise ValueError(f"Invalid data type: {data_type}")
