@@ -135,9 +135,7 @@ class ModbusApi:
             bool: The value of the specified bit.
         """
         try:
-            registers = self.client.execute(
-                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=1
-            )
+            registers = self.read_register_value(address, 2)
             value = (registers[0] & (1 << bit_index)) != 0
             if save_log:
                 self.logger.info("读取 bool 地址 %s 值为: %s, bit 位是: %s", address, value, bit_index)
@@ -156,12 +154,31 @@ class ModbusApi:
             int: The value read from the PLC.
         """
         try:
-            registers = self.client.execute(
-                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=1
-            )
+            registers = self.read_register_value(address, 2)
             int_value = registers[0]
             if save_log:
                 self.logger.info("读取 int 地址 %s 值为: %s", address, int_value)
+            return int_value
+        except Exception as e:
+            self.logger.error("读取输入寄存器时出错: %s", str(e))
+            raise PLCReadError(f"读取输入寄存器时出错: {e}") from e
+
+    def read_dint(self, address: int, save_log: bool = True) -> int:
+        """读取 2 个 word 4 个 byte 的 dint 数据.
+        Args:
+            address: The address to read from.
+            save_log: Whether to save the log or not.
+
+        Returns:
+            int: The value read from the PLC.
+        """
+        try:
+            registers = self.read_register_value(address, 2)
+            int_value = registers[0]
+            if int_value >= 65535:
+                int_value = int_value - 65536
+            if save_log:
+                self.logger.info("读取 dint 地址 %s 值为: %s", address, int_value)
             return int_value
         except Exception as e:
             self.logger.error("读取输入寄存器时出错: %s", str(e))
@@ -229,16 +246,15 @@ class ModbusApi:
             save_log: Whether to save the log or not.
         """
         try:
-            coils = self.client.execute(
-                slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=1
-            )
+            coils = self.read_register_value(address, 2)
             current_value = coils[0]
             if value:
                 new_value = current_value | (1 << bit_index)
             else:
                 new_value = current_value & ~(1 << bit_index)
             self.client.execute(
-                slave=1, function_code=cst.WRITE_SINGLE_REGISTER, starting_address=address, output_value=new_value)
+                slave=1, function_code=cst.WRITE_SINGLE_REGISTER, starting_address=address, output_value=new_value
+            )
             if save_log:
                 self.logger.info("向 bool 地址 %s 写入值 %s, bit 位是: %s", address, value, bit_index)
         except Exception as e:
@@ -253,14 +269,35 @@ class ModbusApi:
             value: The integer value or list of integer values to write.
             save_log: Whether to save the log or not.
         """
-        if isinstance(value, int):
-            value = [value]
         try:
             self.client.execute(
-                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=address, output_value=value
+                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=address, output_value=[value]
             )
             if save_log:
                 self.logger.info("向 int 地址 %s 写入值 %s", address, value)
+        except Exception as e:
+            self.logger.error("写入输入寄存器时出错: %s", str(e))
+            raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
+
+    def write_dint(self, address: int, value: Union[int, List[int]], save_log: bool = True):
+        """向 plc 写入 2 个 word 4 个 byte 的 dint 数据.
+
+        Args:
+            address: The address to write to.
+            value: The integer value or list of integer values to write.
+            save_log: Whether to save the log or not.
+        """
+        if value < 0:
+            value = value + 0x100000000  # 0x100000000 = 2^32
+        high_word = (value >> 16) & 0xFFFF  # 高16位
+        low_word = value & 0xFFFF  # 低16位
+        high_low = [high_word, low_word]
+        try:
+            self.client.execute(
+                slave=1, function_code=cst.WRITE_MULTIPLE_REGISTERS, starting_address=address, output_value=high_low
+            )
+            if save_log:
+                self.logger.info("向 dint 地址 %s 写入值 %s", address, value)
         except Exception as e:
             self.logger.error("写入输入寄存器时出错: %s", str(e))
             raise PLCWriteError(f"写入输入寄存器时出错: {e}") from e
@@ -345,7 +382,6 @@ class ModbusApi:
             self.logger.error("写入连续值时出错: %s", str(e))
             raise PLCWriteError(f"写入连续值到保持寄存器时出错: {e}") from e
 
-    # pylint: disable=R0913, R0917
     def execute_read(
             self, data_type: str, address: int, size: int = 1, bit_index: int = 0, save_log: bool = True
     ) -> Union[int, str, bool]:
@@ -366,6 +402,8 @@ class ModbusApi:
             return self.read_bool(address, bit_index, save_log)
         if data_type == "int":
             return self.read_int(address, save_log)
+        if data_type == "dint":
+            return self.read_dint(address, save_log)
         if data_type in  ["str", "string"]:
             return self.read_str(address, size, save_log)
         if data_type == "real":
@@ -373,7 +411,6 @@ class ModbusApi:
 
         raise ValueError(f"Invalid data type: {data_type}")
 
-    # pylint: disable=R0913, R0917
     def execute_write(
             self, data_type: str, address: int, value: Union[bool, int, float, str],
             bit_index: int = 0, save_log: bool = True, **kwargs
@@ -395,6 +432,8 @@ class ModbusApi:
             self.write_bool(address, bit_index, value, save_log)
         elif data_type == "int":
             self.write_int(address, value, save_log)
+        elif data_type == "dint":
+            self.write_dint(address, value, save_log)
         elif data_type in ["str", "string"]:
             size = kwargs.get("size")
             if size is None:
@@ -402,3 +441,17 @@ class ModbusApi:
             self.write_str(address, value, size, save_log)
         else:
             raise ValueError(f"Invalid data type: {data_type}")
+
+    def read_register_value(self, address: int, byte_count: int) -> tuple:
+        """读取地址数据.
+
+        Args:
+            address: 开始地址.
+            byte_count: byte 个数.
+
+        Returns:
+            tuple: 返回地址数据.
+        """
+        return self.client.execute(
+            slave=1, function_code=cst.READ_HOLDING_REGISTERS, starting_address=address, quantity_of_x=byte_count // 2
+        )
